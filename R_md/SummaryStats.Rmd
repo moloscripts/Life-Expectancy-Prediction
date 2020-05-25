@@ -1,0 +1,96 @@
+---
+title: "Predicting Life Expectancy - Summary Statistics"
+author: "Molo Muli"
+date: "5/22/2020"
+output: html_document
+---
+
+```{r read, include=FALSE}
+data.raw.le <- read.csv("../Data/Life Expectancy Data.csv")
+library(easypackages)
+libraries("tidyverse","dlookr","DT","htmltools", "mice")
+```
+
+### Data Dimensions
+The dataset dimension is `"[2,938 x 22]"`,2,938 rows and 22 columns. Out of these, Country, year and status columns are the only factors. All others are numeric. Below are all the column names of the dataset. More information about data present in the respective columns can be found [here](https://www.kaggle.com/kumarajarshi/life-expectancy-who/data).
+
+```{r colnames, echo=FALSE}
+colnames(data.raw.le)
+```
+
+### Missing Values
+The table below shows the count and corresponding missing percentage of missing values per column. Population is the most affected column accounting for 22% of its values missing.
+
+```{r missingDT, echo=FALSE}
+# Missing DF
+missing.data.le <- data.raw.le %>%
+  diagnose() %>%
+  select(-unique_count, unique_rate) %>%
+  filter(missing_count>0) %>%
+  arrange(desc(missing_count))
+# Round off
+round.2.two <- function(x, digits){
+  numeric.cols <- sapply(x, mode) == 'numeric'
+  x[numeric.cols] <- round(x[numeric.cols], digits)
+  x
+}
+missing.data.le <-  round.2.two(missing.data.le, 2)
+
+# DT Output
+datatable(missing.data.le, rownames=FALSE, options = list(pageLength = 5), class = 'display',
+          colnames = c("Column", "Column Type", "Missing Count", "Missing (%)", "Unique Rate"),
+          caption = htmltools::tags$caption(
+                style = 'caption-side: bottom; text-align: center;',
+                'Table 1: ', htmltools::em('Table showing columns with count of missing values.')
+          )
+)
+
+```
+
+From the projects' context, this is how missing values were handled:
+
+>>As the data-sets were from WHO, we found no evident errors. Missing data was handled in R software by using Missmap command. The result indicated that most of the missing data was for population, Hepatitis B and GDP. The missing data were from less known countries like Vanuatu, Tonga, Togo, Cabo Verde etc. Finding all data for these countries was difficult and hence, it was decided that we exclude these countries from the final model data-set
+>>
+
+From the above we can ascribe that missing values are not in a systematic manner. Therefore, a listwise deletion method is the appropriate method for dealing with missing values. The final dataframe has the following dimension, `"[1,649 x 22]"`. 1649 observations and 22 variables.
+
+### Outlier Mapping
+Outliers are values that fit or differ significantly from other observations present in the dataset. There are a myriad ways of outlier testing, depending on the hypothesis, the type of data and the goal to be achieved. In this specific context, I used dlookrs package to extract outlier counts per varable in the dataset and as well, use of boxplots to interet
+
+```{r outlierTable, echo=FALSE}
+#  Listwise deletion of missing values
+le.data <-  data.raw.le[complete.cases(data.raw.le), ]
+le.data$Year <- as.factor(le.data$Year)
+
+# Outliers DF
+le.outliers <- le.data %>%
+  diagnose_outlier() %>%
+  select(-outliers_mean) %>%
+  arrange(desc(outliers_cnt))
+le.outliers <- round.2.two(le.outliers, 2)
+
+# DT Output
+datatable(le.outliers, rownames=FALSE, options = list(pageLength = 5), class = 'display',
+          colnames = c("Column", "Outlier Count", "Outlier Ratio", "Mean (With Outliers)", "Mean (Without Outliers)"),
+          caption = htmltools::tags$caption(
+                style = 'caption-side: bottom; text-align: center;',
+                'Table 1: ', htmltools::em('Table with Outlier count, mean of variables with and without the outliers.')
+          )
+)
+
+```
+From the output we can further visualise showing the distribution with and without the outliers, in understanding distribution and the magnitude of the outliers given the ranges. The below plots shows variable columns wuth the highest outlier count. Depicting behaviour of the visuals with and without outliers.
+
+
+```{r outlierGraph, echo=F}
+le.data %>%
+  plot_outlier(diagnose_outlier(le.data) %>% 
+                 filter(outliers_ratio >= 10) %>% 
+                 select(variables) %>% 
+                 unlist())
+
+```
+
+One of the ways of handling outliers in a data analysis process is to remove/filter them. However since earlier on we performed listwise deletion, I'll also perform feature selection/extraction to then finally decide which columns to keep and select the appropriate range of outliers. 
+
+
